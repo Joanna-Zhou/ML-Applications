@@ -86,7 +86,7 @@ class OCR():
 		return startX, endX, startY, endY
 
 
-def fuzzy_string_match(self, string_detected, string_desired=''):
+	def fuzzy_string_match(self, string_detected, string_desired=''):
 		if not string_detected or string_detected == '':
 			return False
 		else:
