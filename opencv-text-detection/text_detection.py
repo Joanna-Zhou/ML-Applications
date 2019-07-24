@@ -16,7 +16,7 @@ class OCR():
 	def __init__(self):
 		self.folder_dir = 'images/'
 		self.image_names = [file for file in glob.glob(self.folder_dir + '*JPG')]
-		self.string_dictionary = {'Bakery':[], 'Produce':[], 'Granola':[], 'Baking':[], 'Juices':[], 'Soda':[]} # string_desired: [(image_name, coordinate)]
+		self.string_dictionary = {'Rotisserie':[], 'Produce':[], 'Granola':[], 'Baking':[], 'Juices':[], 'Soda':[]} # string_desired: [(image_name, coordinate)]
 
 	def decode(self, scores, geometry, scoreThresh):
 		detections = []
@@ -77,7 +77,6 @@ class OCR():
 	def rectangle_formation(self, vertices, origW, origH, padding=0.05):
 		startX, endX = min(vertices[0][0], vertices[1][0]), max(vertices[2][0], vertices[3][0])
 		startY, endY = min(vertices[1][1], vertices[2][1]), max(vertices[0][1], vertices[3][1])
-		# print('rectangle:', startX, startY, endX, endY)
 		dX = (endX - startX) * padding
 		dY = (endY - startY) * padding
 		startX = int(max(0, startX - dX))
@@ -87,11 +86,38 @@ class OCR():
 		return startX, endX, startY, endY
 
 
-	def fuzzy_string_match(self, string_detected, string_desired=''):
+	def fuzzy_string_match(self, string_detected, string_desired='', ratio_threshold=0.7):
 		if not string_detected or string_detected == '':
 			return False
 		else:
-			return string_detected
+			string_detected, string_desired = string_detected.lower(), string_desired.lower()
+			# Initialize matrix of zeros
+			rows, cols = len(string_detected)+1, len(string_desired)+1
+			distance = np.zeros((rows,cols),dtype = int)
+
+			# Populate matrix of zeros with the indeces of each character of both strings
+			for i in range(1, rows):
+				for k in range(1,cols):
+					distance[i][0] = i
+					distance[0][k] = k
+
+			# Iterate over the matrix to compute the cost of deletions,insertions and/or substitutions    
+			for col in range(1, cols):
+				for row in range(1, rows):
+					if string_detected[row-1] == string_desired[col-1]:
+						cost = 0 # If the characters are the same in the two strings in a given position [i,j] then the cost is 0
+					else:
+						cost = 2
+					distance[row][col] = min(distance[row-1][col] + 1,      # Cost of deletions
+										distance[row][col-1] + 1,          # Cost of insertions
+										distance[row-1][col-1] + cost)     # Cost of substitutions
+
+			ratio = ((len(string_detected)+len(string_desired)) - distance[row][col]) / (len(string_detected)+len(string_desired))
+			print('Detected text: "{}", {} from the desired "{}"'.format(string_detected, ratio, string_desired))
+			if ratio >= ratio_threshold:
+				return True
+			else:
+				return False
 
 
 	def text_detection(self, image_name):
@@ -109,7 +135,7 @@ class OCR():
 		layers.append("feature_fusion/concat_3")
 
 		# Open a video file or an image file or a camera stream
-		print("Processing image", image_name)
+		print("\n\n----------------Processing image", image_name, '----------------\n')
 		cap = cv.VideoCapture(image_name)
 
 		# Read frame
@@ -163,26 +189,22 @@ class OCR():
 			# (3) an OEM value, in this case, 7 which implies that we are
 			# treating the ROI as a single line of text
 			config = ("-l eng --oem 1 --psm 7")
-			text = pytesseract.image_to_string(roi, config=config)
-			detected_text = self.fuzzy_string_match(text)
-			if detected_text:
-				text_coordinates = (int(0.5*(startX+endX)), int(0.5*(startY+endY)))
-				print('Text "{}" detected at coordinate {}\n'.format(detected_text, text_coordinates)) 
-				cv.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-				cv.putText(frame, detected_text, (startX, startY - 20), cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+			text_detected = pytesseract.image_to_string(roi, config=config)
 
-		# add the bounding box coordinateś and OCR'd text to the list of results
-		results.append(((startX, startY, endX, endY), text))
-
-
-
-
-
-		# Display the frame
-		# cv.imshow(kWinName,frame)
-		cv.imwrite('{}_result.png'.format(image_name[:-4]),frame)
+			for text_desired in self.string_dictionary:
+				text_matchable = self.fuzzy_string_match(text_detected, text_desired)
+				if text_matchable:
+					text_coordinates = (int(0.5*(startX+endX)), int(0.5*(startY+endY)))
+					print('Text "{}" detected at coordinate {}\n'.format(text_desired, text_coordinates)) 
+					cv.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+					cv.putText(frame, text_desired, (startX, startY - 20), cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+					self.string_dictionary[text_desired].append((image_name.split('/')[-1], text_coordinates))
+				
+		cv.imwrite('{}results/{}_result.png'.format(self.folder_dir, image_name.split('/')[-1][:-4]),frame)
 		
 		
 if __name__ == "__main__":
 	test = OCR()
-	test.text_detection(test.image_names[0])
+	for image_name in test.image_names:
+		test.text_detection(image_name)
+	print('\n==================================================\nOCR results:', test.string_dictionary)
