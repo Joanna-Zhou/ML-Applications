@@ -14,8 +14,9 @@ import pytesseract
 
 class OCR():
 	def __init__(self):
-		folder_dir = 'images/'
-		self.image_names = [file for file in glob.glob(folder_dir + '*JPG')]
+		self.folder_dir = 'images/'
+		self.image_names = [file for file in glob.glob(self.folder_dir + '*JPG')]
+		self.string_dictionary = {'Bakery':[], 'Produce':[], 'Granola':[], 'Baking':[], 'Juices':[], 'Soda':[]} # string_desired: [(image_name, coordinate)]
 
 	def decode(self, scores, geometry, scoreThresh):
 		detections = []
@@ -152,7 +153,6 @@ class OCR():
 				cv.line(frame, p1, p2, (0, 255, 0), 1)
 
 			startX, endX, startY, endY = self.rectangle_formation(vertices, width_, height_)
-			cv.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
 
 			# extract the actual padded ROI
 			roi = frame[startY:endY, startX:endX]
@@ -168,7 +168,8 @@ class OCR():
 			if detected_text:
 				text_coordinates = (int(0.5*(startX+endX)), int(0.5*(startY+endY)))
 				print('Text "{}" detected at coordinate {}\n'.format(detected_text, text_coordinates)) 
-				cv.putText(frame, text, (startX, startY - 20), cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+				cv.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
+				cv.putText(frame, detected_text, (startX, startY - 20), cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
 
 		# add the bounding box coordinateś and OCR'd text to the list of results
 		results.append(((startX, startY, endX, endY), text))
@@ -179,7 +180,7 @@ class OCR():
 
 		# Display the frame
 		# cv.imshow(kWinName,frame)
-		cv.imwrite('images/result.png',frame)
+		cv.imwrite('{}_result.png'.format(image_name[:-4]),frame)
 		
 		
 if __name__ == "__main__":
