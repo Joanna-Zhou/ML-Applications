@@ -3,6 +3,7 @@
 
 # import the necessary packages
 from imutils.object_detection import non_max_suppression
+import imutils
 import numpy as np
 import math
 import argparse
@@ -13,10 +14,19 @@ import pytesseract
 
 
 class OCR():
-	def __init__(self):
+	def __init__(self, string_dictionary):
 		self.folder_dir = 'images/'
 		self.image_names = [file for file in glob.glob(self.folder_dir + '*JPG')]
-		self.string_dictionary = {'Rotisserie':[], 'Produce':[], 'Granola':[], 'Baking':[], 'Juices':[], 'Soda':[]} # string_desired: [(image_name, coordinate)]
+		self.string_dictionary = string_dictionary
+		self.counter = 0
+		self.padding = 0.1
+		self.stringThreshold = 0.7
+		self.confThreshold = 0.5
+		self.nmsThreshold = 0.4
+		self.inpWidth = 800
+		self.inpHeight = 800
+		self.model = 'frozen_east_text_detection.pb'
+
 
 	def decode(self, scores, geometry, scoreThresh):
 		detections = []
@@ -74,19 +84,25 @@ class OCR():
 		return [detections, confidences]
 
 
-	def rectangle_formation(self, vertices, origW, origH, padding=0.05):
+	def rectangle_formation(self, vertices, origW, origH):
 		startX, endX = min(vertices[0][0], vertices[1][0]), max(vertices[2][0], vertices[3][0])
 		startY, endY = min(vertices[1][1], vertices[2][1]), max(vertices[0][1], vertices[3][1])
-		dX = (endX - startX) * padding
-		dY = (endY - startY) * padding
+		
+		width, height = np.linalg.norm(vertices[0]-vertices[1]), np.linalg.norm(vertices[1]-vertices[2])
+		angle = np.arctan((vertices[2][1]-vertices[1][1])/(vertices[2][0]-vertices[1][0]))
+		
+		dX = (endX - startX) * self.padding
+		dY = (endY - startY) * self.padding
+		
 		startX = int(max(0, startX - dX))
 		startY = int(max(0, startY - dY))
 		endX = int(min(origW, endX + (dX * 2)))
 		endY = int(min(origH, endY + (dY * 2)))
-		return startX, endX, startY, endY
+
+		return [angle, width, height, startX, endX, startY, endY]
 
 
-	def fuzzy_string_match(self, string_detected, string_desired='', ratio_threshold=0.7):
+	def fuzzy_string_match(self, string_detected, string_desired=''):
 		if not string_detected or string_detected == '':
 			return False
 		else:
@@ -114,22 +130,59 @@ class OCR():
 
 			ratio = ((len(string_detected)+len(string_desired)) - distance[row][col]) / (len(string_detected)+len(string_desired))
 			print('Detected text: "{}", {} from the desired "{}"'.format(string_detected, ratio, string_desired))
-			if ratio >= ratio_threshold:
+			if ratio >= self.stringThreshold:
 				return True
 			else:
 				return False
 
 
+	def subimage(self, image, angle, width, height):
+		''' 
+		Rotates OpenCV image around center with angle theta (in deg)
+		then crops the image according to width and height.
+		'''
+		height, width = int(width*(1+self.padding)), int(height*(1+self.padding))
+		angle *= 180/np.pi
+		# grab the dimensions of the image and then determine the
+		# center
+		(h, w) = image.shape[:2]
+		(cX, cY) = (w // 2, h // 2)
+	
+		# grab the rotation matrix (applying the negative of the
+		# angle to rotate clockwise), then grab the sine and cosine
+		# (i.e., the rotation components of the matrix)
+		M = cv.getRotationMatrix2D((cX, cY), angle, 1.0)
+		cos = np.abs(M[0, 0])
+		sin = np.abs(M[0, 1])
+	
+		# compute the new bounding dimensions of the image
+		nW = int((h * sin) + (w * cos))
+		nH = int((h * cos) + (w * sin))
+	
+		# adjust the rotation matrix to take into account translation
+		M[0, 2] += (nW / 2) - cX
+		M[1, 2] += (nH / 2) - cY
+		
+		image = cv.warpAffine(image, M, (nW, nH))
+		cv.imwrite('roi-rotated.png',image)
+
+		(cX, cY) = (nW / 2, nH / 2)
+		# print('Center:', cX, cY)
+		# print('Size:', width, height)
+
+		x = int( cX - width/2  )
+		y = int( cY - height/2 )
+		# print('Corner:', x, y)
+		image = image[ y:y+height, x:x+width ]
+		cv.imwrite('roi-cropped.png',image)
+		# self.counter += 2
+		return image
+ 
+
 	def text_detection(self, image_name):
-		# Read and store arguments
-		confThreshold = 0.5
-		nmsThreshold = 0.4
-		inpWidth = 800
-		inpHeight = 800
-		model = 'frozen_east_text_detection.pb'
 
 		# Load network
-		net = cv.dnn.readNet(model)
+		net = cv.dnn.readNet(self.model)
 		layers = []
 		layers.append("feature_fusion/Conv_7/Sigmoid")
 		layers.append("feature_fusion/concat_3")
@@ -144,28 +197,25 @@ class OCR():
 		# Get frame height and width
 		height_ = frame.shape[0]
 		width_ = frame.shape[1]
-		rW = width_ / float(inpWidth)
-		rH = height_ / float(inpHeight)
+		rW = width_ / float(self.inpWidth)
+		rH = height_ / float(self.inpHeight)
 
 		# Create a 4D blob from frame.
-		blob = cv.dnn.blobFromImage(frame, 1.0, (inpWidth, inpHeight), (123.68, 116.78, 103.94), True, False)
+		blob = cv.dnn.blobFromImage(frame, 1.0, (self.inpWidth, self.inpHeight), (123.68, 116.78, 103.94), True, False)
 
 		# Run the model
 		net.setInput(blob)
 		outs = net.forward(layers)
 		t, _ = net.getPerfProfile()
-		label = 'Inference time: %.2f ms' % (t * 1000.0 / cv.getTickFrequency())
 
 		# Get scores and geometry
 		scores = outs[0]
 		geometry = outs[1]
-		[boxes, confidences] = self.decode(scores, geometry, confThreshold)
-
-		# initialize the list of results
-		results = []
+		[boxes, confidences] = self.decode(scores, geometry, self.confThreshold)
 
 		# Apply NMS
-		indices = cv.dnn.NMSBoxesRotated(boxes, confidences, confThreshold,nmsThreshold)
+		indices = cv.dnn.NMSBoxesRotated(boxes, confidences, self.confThreshold,self.nmsThreshold)
+		parallelograms, matches, texts, text_locations = {}, {}, {}, {}
 		for i in indices:
 			# get 4 corners of the parallelogram and the rectangle containing it
 			vertices = cv.boxPoints(boxes[i[0]])
@@ -173,15 +223,14 @@ class OCR():
 			for j in range(4):
 				vertices[j][0] *= rW
 				vertices[j][1] *= rH
-			for j in range(4):
-				p1 = (vertices[j][0], vertices[j][1])
-				p2 = (vertices[(j + 1) % 4][0], vertices[(j + 1) % 4][1])
-				cv.line(frame, p1, p2, (0, 255, 0), 1)
+			parallelograms[str(i)] = vertices
 
-			startX, endX, startY, endY = self.rectangle_formation(vertices, width_, height_)
-
+			[angle, width, height, startX, endX, startY, endY] = self.rectangle_formation(vertices, width_, height_)
+			text_locations[str(i)] = (startX, startY - 20)
 			# extract the actual padded ROI
 			roi = frame[startY:endY, startX:endX]
+			cv.imwrite('roi-original.png',roi)
+			roi_rotated = self.subimage(roi, angle, width, height)
 
 			# in order to apply Tesseract v4 to OCR text we must supply
 			# (1) a language, (2) an OEM flag of 4, indicating that the we
@@ -189,22 +238,47 @@ class OCR():
 			# (3) an OEM value, in this case, 7 which implies that we are
 			# treating the ROI as a single line of text
 			config = ("-l eng --oem 1 --psm 7")
-			text_detected = pytesseract.image_to_string(roi, config=config)
+			text_detected = pytesseract.image_to_string(roi_rotated, config=config)
 
 			for text_desired in self.string_dictionary:
 				text_matchable = self.fuzzy_string_match(text_detected, text_desired)
 				if text_matchable:
 					text_coordinates = (int(0.5*(startX+endX)), int(0.5*(startY+endY)))
 					print('Text "{}" detected at coordinate {}\n'.format(text_desired, text_coordinates)) 
-					cv.rectangle(frame, (startX, startY), (endX, endY), (0, 0, 255), 2)
-					cv.putText(frame, text_desired, (startX, startY - 20), cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+					matches[str(i)] = True
+					texts[str(i)] = text_desired
 					self.string_dictionary[text_desired].append((image_name.split('/')[-1], text_coordinates))
-				
+				else:
+					matches[str(i)] = False
+					texts[str(i)] = text_detected
+
+		for i in indices:
+			vertices = parallelograms[str(i)]
+			if not matches[str(i)]: 
+				color = (0, 200, 255)
+			else:
+				color = (0, 0, 255)
+			for j in range(4):
+				p1 = (vertices[j][0], vertices[j][1])
+				p2 = (vertices[(j + 1) % 4][0], vertices[(j + 1) % 4][1])
+				cv.line(frame, p1, p2, color, 3)
+			cv.putText(frame, texts[str(i)], text_locations[str(i)], cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 200, 255), 3)
+
 		cv.imwrite('{}results/{}_result.png'.format(self.folder_dir, image_name.split('/')[-1][:-4]),frame)
 		
 		
 if __name__ == "__main__":
-	test = OCR()
+	# string_dictionary = {'Rotisserie':[], 'Produce':[], 'Baking':[], 'Juices':[], 'Soda':[]} # string_desired: [(image_name, coordinate)]	
+	string_dictionary = {'Toast': []}
+
+	test = OCR(string_dictionary)
 	for image_name in test.image_names:
 		test.text_detection(image_name)
-	print('\n==================================================\nOCR results:', test.string_dictionary)
+	# print('\n==================================================\nOCR results:', test.string_dictionary)
+
+	results = test.string_dictionary
+	for key in results:
+		print(key, ':==============================')
+		for item in results[key]:
+			print(item)
+		print('\n')
