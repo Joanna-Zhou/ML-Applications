@@ -194,71 +194,64 @@ def main():
 	# Read and store arguments
 	confThreshold = 0.5
 	nmsThreshold = 0.4
-	inpWidth = 320
-	inpHeight = 320
+	inpWidth = 800
+	inpHeight = 800
 	model = 'frozen_east_text_detection.pb'
 
 	# Load network
 	net = cv.dnn.readNet(model)
 
 	# Create a new named window
-	kWinName = "EAST: An Efficient and Accurate Scene Text Detector"
-	cv.namedWindow(kWinName, cv.WINDOW_NORMAL)
-	outNames = []
-	outNames.append("feature_fusion/Conv_7/Sigmoid")
-	outNames.append("feature_fusion/concat_3")
+	# kWinName = "EAST: An Efficient and Accurate Scene Text Detector"
+	# cv.namedWindow(kWinName, cv.WINDOW_NORMAL)
+	layers = []
+	layers.append("feature_fusion/Conv_7/Sigmoid")
+	layers.append("feature_fusion/concat_3")
 
 	# Open a video file or an image file or a camera stream
 	print(IMAGES)
 	cap = cv.VideoCapture(IMAGES[0])
 
-	while cv.waitKey(1) < 0:
-		# Read frame
-		hasFrame, frame = cap.read()
-		if not hasFrame:
-			cv.waitKey()
-			break
+	# Read frame
+	hasFrame, frame = cap.read()
 
-		# Get frame height and width
-		height_ = frame.shape[0]
-		width_ = frame.shape[1]
-		rW = width_ / float(inpWidth)
-		rH = height_ / float(inpHeight)
+	# Get frame height and width
+	height_ = frame.shape[0]
+	width_ = frame.shape[1]
+	rW = width_ / float(inpWidth)
+	rH = height_ / float(inpHeight)
 
-		# Create a 4D blob from frame.
-		blob = cv.dnn.blobFromImage(frame, 1.0, (inpWidth, inpHeight), (123.68, 116.78, 103.94), True, False)
+	# Create a 4D blob from frame.
+	blob = cv.dnn.blobFromImage(frame, 1.0, (inpWidth, inpHeight), (123.68, 116.78, 103.94), True, False)
 
-		# Run the model
-		net.setInput(blob)
-		outs = net.forward(outNames)
-		t, _ = net.getPerfProfile()
-		label = 'Inference time: %.2f ms' % (t * 1000.0 / cv.getTickFrequency())
+	# Run the model
+	net.setInput(blob)
+	outs = net.forward(layers)
+	t, _ = net.getPerfProfile()
+	label = 'Inference time: %.2f ms' % (t * 1000.0 / cv.getTickFrequency())
 
-		# Get scores and geometry
-		scores = outs[0]
-		geometry = outs[1]
-		[boxes, confidences] = decode(scores, geometry, confThreshold)
+	# Get scores and geometry
+	scores = outs[0]
+	geometry = outs[1]
+	[boxes, confidences] = decode(scores, geometry, confThreshold)
 
-		# Apply NMS
-		indices = cv.dnn.NMSBoxesRotated(boxes, confidences, confThreshold,nmsThreshold)
-		for i in indices:
-			# get 4 corners of the rotated rect
-			vertices = cv.boxPoints(boxes[i[0]])
-			# scale the bounding box coordinates based on the respective ratios
-			for j in range(4):
-				vertices[j][0] *= rW
-				vertices[j][1] *= rH
-			for j in range(4):
-				p1 = (vertices[j][0], vertices[j][1])
-				p2 = (vertices[(j + 1) % 4][0], vertices[(j + 1) % 4][1])
-				cv.line(frame, p1, p2, (0, 255, 0), 1)
-
-		# Put efficiency information
-		# cv.putText(frame, label, (0, 15), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0))
-
-		# Display the frame
-		# cv.imshow(kWinName,frame)
-		cv.imwrite('images/result.png',frame)
+	# Apply NMS
+	indices = cv.dnn.NMSBoxesRotated(boxes, confidences, confThreshold,nmsThreshold)
+	for i in indices:
+		# get 4 corners of the rotated rect
+		vertices = cv.boxPoints(boxes[i[0]])
+		# scale the bounding box coordinates based on the respective ratios
+		for j in range(4):
+			vertices[j][0] *= rW
+			vertices[j][1] *= rH
+		for j in range(4):
+			p1 = (vertices[j][0], vertices[j][1])
+			p2 = (vertices[(j + 1) % 4][0], vertices[(j + 1) % 4][1])
+			cv.line(frame, p1, p2, (0, 255, 0), 1)
+			
+	# Display the frame
+	# cv.imshow(kWinName,frame)
+	cv.imwrite('images/result.png',frame)
 		
 		
 if __name__ == "__main__":
