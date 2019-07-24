@@ -12,8 +12,8 @@ import glob
 
 FOLDERDIR = 'images/'
 MIN_CONFIDENCE = 0.5
-WIDTH = 320
-HEIGHT = 320
+WIDTH = 800
+HEIGHT = 800
 PADDING = 0.05
 # IMAGES = [cv2.imread(file) for file in glob.glob(FOLDERDIR + '*JPG')]
 # IMAGES = [cv2.imread(file) for file in glob.glob(FOLDERDIR + '*jpg')]
@@ -136,6 +136,7 @@ results = []
 
 # loop over the bounding boxes
 for (startX, startY, endX, endY) in boxes:
+	print(startX, startY, endX, endY)
 	# scale the bounding box coordinates based on the respective
 	# ratios
 	startX = int(startX * rW)
@@ -154,6 +155,8 @@ for (startX, startY, endX, endY) in boxes:
 	startY = max(0, startY - dY)
 	endX = min(origW, endX + (dX * 2))
 	endY = min(origH, endY + (dY * 2))
+	cv2.rectangle(orig, (startX, startY), (endX, endY),
+		(0, 0, 255), 2)
 
 	# extract the actual padded ROI
 	roi = orig[startY:endY, startX:endX]
