@@ -23,8 +23,8 @@ class OCR():
 		self.stringThreshold = 0.7
 		self.confThreshold = 0.5
 		self.nmsThreshold = 0.4
-		self.inpWidth = 800
-		self.inpHeight = 800
+		self.inpWidth = 1408
+		self.inpHeight = 1056
 		self.model = 'frozen_east_text_detection.pb'
 
 
@@ -136,7 +136,7 @@ class OCR():
 				return False
 
 
-	def subimage(self, image, angle, width, height):
+	def processed_roi(self, image, angle, width, height):
 		''' 
 		Rotates OpenCV image around center with angle theta (in deg)
 		then crops the image according to width and height.
@@ -164,18 +164,13 @@ class OCR():
 		M[1, 2] += (nH / 2) - cY
 		
 		image = cv.warpAffine(image, M, (nW, nH))
-		cv.imwrite('roi-rotated.png',image)
-
+		# cv.imwrite('roi-rotated.png',image)
 		(cX, cY) = (nW / 2, nH / 2)
-		# print('Center:', cX, cY)
-		# print('Size:', width, height)
 
 		x = int( cX - width/2  )
 		y = int( cY - height/2 )
-		# print('Corner:', x, y)
 		image = image[ y:y+height, x:x+width ]
-		cv.imwrite('roi-cropped.png',image)
-		# self.counter += 2
+		# cv.imwrite('roi-cropped.png',image)
 		return image
  
 
@@ -229,8 +224,8 @@ class OCR():
 			text_locations[str(i)] = (startX, startY - 20)
 			# extract the actual padded ROI
 			roi = frame[startY:endY, startX:endX]
-			cv.imwrite('roi-original.png',roi)
-			roi_rotated = self.subimage(roi, angle, width, height)
+			# cv.imwrite('roi-original.png',roi)
+			roi_rotated = self.processed_roi(roi, angle, width, height)
 
 			# in order to apply Tesseract v4 to OCR text we must supply
 			# (1) a language, (2) an OEM flag of 4, indicating that the we
@@ -239,7 +234,8 @@ class OCR():
 			# treating the ROI as a single line of text
 			config = ("-l eng --oem 1 --psm 7")
 			text_detected = pytesseract.image_to_string(roi_rotated, config=config)
-
+			
+			matches[str(i)] = False
 			for text_desired in self.string_dictionary:
 				text_matchable = self.fuzzy_string_match(text_detected, text_desired)
 				if text_matchable:
@@ -249,36 +245,92 @@ class OCR():
 					texts[str(i)] = text_desired
 					self.string_dictionary[text_desired].append((image_name.split('/')[-1], text_coordinates))
 				else:
-					matches[str(i)] = False
 					texts[str(i)] = text_detected
 
 		for i in indices:
 			vertices = parallelograms[str(i)]
-			if not matches[str(i)]: 
-				color = (0, 200, 255)
+			if matches[str(i)] == False: 
+				color = (0, 200, 200)
 			else:
 				color = (0, 0, 255)
 			for j in range(4):
 				p1 = (vertices[j][0], vertices[j][1])
 				p2 = (vertices[(j + 1) % 4][0], vertices[(j + 1) % 4][1])
 				cv.line(frame, p1, p2, color, 3)
-			cv.putText(frame, texts[str(i)], text_locations[str(i)], cv.FONT_HERSHEY_SIMPLEX, 1.2, (0, 200, 255), 3)
+			cv.putText(frame, texts[str(i)], text_locations[str(i)], cv.FONT_HERSHEY_SIMPLEX, 1.2, color, 3)
 
 		cv.imwrite('{}results/{}_result.png'.format(self.folder_dir, image_name.split('/')[-1][:-4]),frame)
 		
 		
 if __name__ == "__main__":
-	# string_dictionary = {'Rotisserie':[], 'Produce':[], 'Baking':[], 'Juices':[], 'Soda':[]} # string_desired: [(image_name, coordinate)]	
-	string_dictionary = {'Toast': []}
-
+	string_dictionary = {'Rotisserie':[], 'Cinnamon':[], 'Produce':[], 'Baking':[], 'Juices':[], 'Soda':[], 'Texas':[], 'Hot Pocket':[], 'Sara Fee':[]} # string_desired: [(image_name, coordinate)]	
+	
 	test = OCR(string_dictionary)
 	for image_name in test.image_names:
 		test.text_detection(image_name)
-	# print('\n==================================================\nOCR results:', test.string_dictionary)
+	print('\n==================================================\nOCR results:', test.string_dictionary, '\n')
 
 	results = test.string_dictionary
 	for key in results:
-		print(key, ':==============================')
+		print(key, ': ==============================')
 		for item in results[key]:
 			print(item)
 		print('\n')
+
+'''
+==================================================
+OCR results: {'Rotisserie': [('G0010284.JPG', (3357, 1300)), ('G0011256.JPG', (1772, 1185)), ('G0010473.JPG', (2556, 1349))], 'Cinnamon': [('G0010473.JPG', (1992, 1991)), ('G0010473.JPG', (2394, 1993)), ('G0010473.JPG', (1909, 1810))], 'Produce': [('G0010453.JPG', (534, 764)), ('G0010483.JPG', (2643, 895)), ('G0010697.JPG', (2258, 1045)), ('G0010342.JPG', (1296, 1042)), ('G0011471.JPG', (901, 1384)), ('G0010417.JPG', (1069, 1041)), ('G0011583.JPG', (781, 1112))], 'Baking': [('G0012121.JPG', (597, 898)), ('G0010473.JPG', (850, 1057))], 'Juices': [('G0011924.JPG', (2750, 913))], 'Soda': [('G0012121.JPG', (486, 1731)), ('G0011112.JPG', (2687, 1059))], 'Texas': [('G0011465.JPG', (2606, 953)), ('G0011465.JPG', (1909, 1142)), ('G0011471.JPG', (3158, 1152)), ('G0011863.JPG', (2403, 1304)), ('G0011863.JPG', (2138, 1316))], 'Hot Pocket': [('G0011373.JPG', (1915, 1452)), ('G0011373.JPG', (2062, 1451)), ('G0011465.JPG', (3280, 1984))], 'Sara Fee': []} 
+
+Rotisserie : ==============================
+('G0010284.JPG', (3357, 1300))
+('G0011256.JPG', (1772, 1185))
+('G0010473.JPG', (2556, 1349))
+
+
+Cinnamon : ==============================
+('G0010473.JPG', (1992, 1991))
+('G0010473.JPG', (2394, 1993))
+('G0010473.JPG', (1909, 1810))
+
+
+Produce : ==============================
+('G0010453.JPG', (534, 764))
+('G0010483.JPG', (2643, 895))
+('G0010697.JPG', (2258, 1045))
+('G0010342.JPG', (1296, 1042))
+('G0011471.JPG', (901, 1384))
+('G0010417.JPG', (1069, 1041))
+('G0011583.JPG', (781, 1112))
+
+
+Baking : ==============================
+('G0012121.JPG', (597, 898))
+('G0010473.JPG', (850, 1057))
+
+
+Juices : ==============================
+('G0011924.JPG', (2750, 913))
+
+
+Soda : ==============================
+('G0012121.JPG', (486, 1731))
+('G0011112.JPG', (2687, 1059))
+
+
+Texas : ==============================
+('G0011465.JPG', (2606, 953))
+('G0011465.JPG', (1909, 1142))
+('G0011471.JPG', (3158, 1152))
+('G0011863.JPG', (2403, 1304))
+('G0011863.JPG', (2138, 1316))
+
+
+Hot Pocket : ==============================
+('G0011373.JPG', (1915, 1452))
+('G0011373.JPG', (2062, 1451))
+('G0011465.JPG', (3280, 1984))
+
+
+Sara Fee : ==============================
+
+'''
