@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.linalg import inv
+from math import ceil, floor
 
 def bilinear_interp(I, pt):
     """
@@ -11,7 +12,7 @@ def bilinear_interp(I, pt):
     Note that images are (usually) integer-valued functions (in 2D), therefore
     the intensity value you return must be an integer (use round()).
 
-    This function is for a *single* image band only - for RGB images, you will 
+    This function is for a *single* image band only - for RGB images, you will
     need to call the function once for each colour channel.
 
     Parameters:
@@ -25,8 +26,19 @@ def bilinear_interp(I, pt):
     """
     #--- FILL ME IN ---
 
+
     if pt.shape != (2, 1):
         raise ValueError('Point size is incorrect.')
+
+    # the x, y indeices making up the surrounding 4 pixels' coordinates
+    x, y = pt[0], pt[1]
+    x1, x2, y1, y2 = floor(pt[0]), ceil(pt[0]), floor(pt[1]), ceil(pt[1])
+    b11, b12, b21, b22 = I[x1, y1], I[x1, y2], I[x2, y1], I[x2, y2]
+    b = (b11 * (x2 - x) * (y2 - y) +
+        b21 * (x - x1) * (y2 - y) +
+        b12 * (x2 - x) * (y - y1) +
+        b22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1))
+    b = round(b[0])
 
     #------------------
 

@@ -20,7 +20,7 @@ def dlt_homography(I1pts, I2pts):
     A  - 8x9 np.array of DLT matrix used to determine homography.
     """
     #--- FILL ME IN ---
-    
+
     # initialize the 8*9 matrix stacked by 4 2*9 matrixes
     A = []
 
