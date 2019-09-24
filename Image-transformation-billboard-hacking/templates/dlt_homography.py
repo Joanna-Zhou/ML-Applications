@@ -32,12 +32,15 @@ def dlt_homography(I1pts, I2pts):
         A.append([-x, -y, -1, 0, 0, 0, u*x, u*y, u])
         A.append([0, 0, 0, -x, -y, -1, v*x, v*y, v])
 
-    # H is obtained by Ah = 0, solved by SVD
-    # The solution is V's last column (the column corresponding to sigma=0)
-    U, S, V = np.linalg.svd(np.array(A))
+    # H is obtained by Ah = 0
+    H = null_space(A)
 
     # Normalize the matrix so that it is homogenous (i.e. the bottom-right is 1)
-    H = V[-1,:].reshape(3, 3)/ V[-1,-1]
+    H = H.reshape(3, 3)/ H[-1]
+
+    # Note that we still need to normalize each column like this:
+    # I2pts = np.dot(H, I1pts)
+    # I2pts /= I2pts[-1]
 
     #------------------
 

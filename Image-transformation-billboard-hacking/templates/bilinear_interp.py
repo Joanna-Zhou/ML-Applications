@@ -34,10 +34,12 @@ def bilinear_interp(I, pt):
     x, y = pt[0], pt[1]
     x1, x2, y1, y2 = floor(pt[0]), ceil(pt[0]), floor(pt[1]), ceil(pt[1])
     b11, b12, b21, b22 = I[x1, y1], I[x1, y2], I[x2, y1], I[x2, y2]
+    # print(b11, b12, b21, b22, '\n', x1, x2, y1, y2)
     b = (b11 * (x2 - x) * (y2 - y) +
         b21 * (x - x1) * (y2 - y) +
         b12 * (x2 - x) * (y - y1) +
         b22 * (x - x1) * (y - y1)) / ((x2 - x1) * (y2 - y1))
+    # print('b:', b)
     b = round(b[0])
 
     #------------------
