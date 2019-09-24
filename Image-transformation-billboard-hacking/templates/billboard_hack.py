@@ -26,8 +26,9 @@ def billboard_hack():
     Iyd_pts = np.array([[416, 485, 488, 410], [40,  61, 353, 349]])
     Ist_pts = np.array([[2, 219, 219, 2], [2, 2, 410, 410]])
 
-    Iyd = imread('../billboard/yonge_dundas_square.jpg') 
+    Iyd = imread('../billboard/yonge_dundas_square.jpg')
     Ist = imread('../billboard/uoft_soldiers_tower_dark.png')
+
     Ihack = np.asarray(Iyd)
     Ist = np.asarray(Ist)
 
@@ -63,13 +64,17 @@ def billboard_hack():
     # Compute the perspective homography we need...
     (H, A) = dlt_homography(Iyd_pts, Ist_pts)
 
-    # Main 'for' loop to do the warp and insertion
+    # First just extract some constants to avoid having to write this ugly thing again and again
     x_top, x_bottom, y_top, y_bottom = bbox[0][0], bbox[0][1], bbox[1][0], bbox[1][2]
-    row_width = y_bottom - y_top+1 # just to aboid using y_array.shape again and again
+    Ist_x_top, Ist_x_bottom, Ist_y_top, Ist_y_bottom = Ist_pts[0][0], Ist_pts[0][1], Ist_pts[1][0], Ist_pts[1][2]
+    row_width = y_bottom - y_top+1
+
+    # Main 'for' loop to do the warp and insertion
     for x in range(x_top, x_bottom+1):
         # Vectorization on each row of pixels
         y_array = np.array(range(y_top, y_bottom+1))
         x_array = np.ones(row_width) * x
+
         # Perform the homography transformation with the helper function above
         Iyd_row = np.concatenate([[x_array], [y_array]])
         Ist_row = homography_transform(Iyd_row, H)
@@ -77,9 +82,10 @@ def billboard_hack():
         # Now we have the coordinates, we do the per-pixel modifications
         for i in range(row_width):
             Iyd_row_x, Iyd_row_y, Ist_row_x, Ist_row_y = int(Iyd_row[:,i][1]), int(Iyd_row[:,i][0]), Ist_row[:,i][1], Ist_row[:,i][0]
+
             # Since the dlt is linear, instead of the contain_point method, I simply checked if the corresponding point
             #   is contained by the rectengule defined the reference points Ist_pts
-            if Ist_row_x >= 2 and Ist_row_y >= 2 and Ist_row_x < 410 and Ist_row_y < 219:
+            if Ist_row_x >= Ist_y_top and Ist_row_y >= Ist_x_top and Ist_row_x < Ist_y_bottom and Ist_row_y < Ist_x_bottom:
                 # Perform the bilinear interpolation
                 intensity = int(bilinear_interp(Ist, np.array([Ist_row_x, Ist_row_y]).reshape(2, 1)))
                 # Change the RGB values on the Iyd picture, replacing it with the interpolated Ist values
@@ -87,9 +93,6 @@ def billboard_hack():
 
     #------------------
 
-    plt.imshow(Ihack)
-    plt.show()
-    imwrite(Ihack, 'billboard_hacked.png');
-
     return Ihack
+
 billboard_hack()
