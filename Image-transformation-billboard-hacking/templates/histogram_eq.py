@@ -24,23 +24,24 @@ def histogram_eq(I):
     if I.dtype != np.uint8:
         raise ValueError('Incorrect image format!')
 
-    # Flatten the 2D matrix to a 1D array
     I_flat = I.flatten()
+    N = len(I_flat)
 
-    # Initiate and update the histogram of "counts of pixels at 256 intensity levels"
-    histogram = np.zeros(256)
-    for pixel in I_flat:
-        histogram[pixel] += 1
+    # Flatten the 2D matrix to a 1D array and generate a histogram of  "counts of pixels at 256 intensity levels"
+    histogram, bins = np.histogram(I.flatten(), 256, [0, 256])
 
-    # Compute the cumulative distribution function at each intensity level, stored in a list
-    cdf = [histogram[0]]
-    for bar in histogram:
-        cdf.append(cdf[-1] + bar)
-    cdf = np.array(cdf)*255/len(I_flat)
+    # Compute the cumulative distribution function at each intensity level and normalize
+    cdf = histogram.cumsum()
+    cdf = cdf * histogram.max() / cdf.max()
 
-    # Transform the new pixel intensities to J which has the same shape of I
-    J_flat = cdf[I_flat]
-    J = np.reshape(J_flat, I.shape).astype('uint8')
+    # Perform an equalization with0 terms ignored
+    # The use of numpy.ma.masked_equal is referenced from:
+    # https://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_imgproc/py_histograms/py_histogram_equalization/py_histogram_equalization.html
+    cdf = np.ma.masked_equal(cdf, 0)
+    cdf = (cdf - cdf.min()) * 255 / (cdf.max() - cdf.min())
+
+    # Read the values into J as uint8
+    J = cdf[I]#.astype('uint8')
 
     #------------------
 
