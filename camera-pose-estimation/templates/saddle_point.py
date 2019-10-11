@@ -24,15 +24,14 @@ def saddle_point(I):
     #--- FILL ME IN ---
 
     m, n = I.shape
-
     # Muilding the A and b for "minimize Ax-b" based on eqn.4
     A = np.zeros([m*n, 6])
     y = np.zeros([m*n, 1])
     row = 0
-    for i in range(m):
-        for j in range(n):
-            A[row] = np.array([i^2, i*j, j^2, i, j, 1])
-            y[row] = I[j][i]
+    for j in range(m):
+        for i in range(n):
+            A[row] = np.array([i*i, i*j, j*j, i, j, 1])
+            y[row] = I[j,i]
             row += 1
 
     # Use least square to fit the parameters (ie. solve Ax-y => params=inv(ATA)ATy)

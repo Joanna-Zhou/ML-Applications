@@ -19,39 +19,52 @@ def find_jacobian(K, Twc, Wpt):
     J  - 2x6 np.array, Jacobian matrix (columns are tx, ty, tz, r, p, q).
     """
     #--- FILL ME IN ---
-    Hwc = Ec;
-    P = Wpt;
 
-    R  = Hwc(1:3, 1:3);
-    dx = P - Hwc(1:3, 4);
-
-    l = K*R'*dx;
-    g = l(3);
-
-    p = l(1:2)/g;  % Scale by depth and discard last row.
-
-    dldP = K*R.';
-
-    % Translation - using above result.
-    dldH(1:3, 1:3) = -dldP;
-
-    % Rotation.
-    [dRdr, dRdp, dRdq] = dcm_jacob_rpy(R);
-
-    dldH(1:3, 4) = K*dRdr'*dx;
-    dldH(1:3, 5) = K*dRdp'*dx;
-    dldH(1:3, 6) = K*dRdq'*dx;
-
-    dgdH = dldH(3, :);
-
-    dpdH = (g*dldH - l*dgdH)/(g^2);
-    dpdH = dpdH(1:2, :);  % Discard last row.
-    %------------------
-    J = dpdH;
-
-    end
+    def dR_drpy(R):
+        """
+        Helper function, finds the elememets cprrespnoding to the rotational variables in the Jacobian
+        """
+        dRdr = R.dot(np.array([[0, 0, 0],
+                              [0, 0, -1],
+                              [0, 1, 0]]))
+        dRdy = np.array([[0, -1, 0],
+                         [1, 0, 0],
+                         [0, 0, 0]]).dot(R)
+        try:
+            cp = np.sqrt(1 - R[2,0]*R[2,0])
+        except Exception as e:
+            print("Chech R matrix: an angle must have been > 1")
+        cy, sy = R[:2, 0]/cp
+        dRdp = np.array([[0,     0, cy],
+                         [0,     0, sy],
+                         [-cy, -sy, 0]]).dot(R)
+        return dRdr, dRdp, dRdy
 
 
+    # Extract the camera extrinsic rotation and translation
+    R, t = Twc[:3, :3], Twc[:3, -1:];
+    dt = Wpt - t;
+
+    # Find each dR or dt over variables
+    # Essentially dR and dt are part of df
+    #   where f(K, Twc, Wpt) = f_tilde = f normalized by 3rd row
+    f = K .dot(R.T).dot(dt)
+    f_z = f[-1, 0]
+
+    # To obtain the derivatives, we do chain rule of a fraction
+    df = np.zeros([3, 6]) # still in homogeneous form
+    df[:, :3] = K.dot(R.T).dot((-np.eye(3)))
+
+    dRdr, dRdp, dRdy = dR_drpy(R)
+    df[:, 3:4] = K .dot(dRdr.T).dot(dt)
+    df[:, 4:5] = K .dot(dRdp.T).dot(dt)
+    df[:, 5:6] = K .dot(dRdy.T).dot(dt)
+
+    df_z = df[-1:, :]
+
+    # Now find J = d(f_tilde)/dq of d(f/f_z)/q, where q = [variables]
+    # and ditch the last row to make it Cartesean again
+    J = np.divide((f_z * df - f.dot(df_z)), f_z*f_z)[:-1, :]
     #------------------
 
     return J

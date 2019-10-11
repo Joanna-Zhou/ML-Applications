@@ -18,7 +18,6 @@ plt.scatter(570, 476, s=500, c='red', marker='x')
 
 plt.show()
 
-# Ipts = cross_junctions(I, bpoly, Wpts)
+Ipts = cross_junctions(I, bpoly, Wpts)
 
-# You can plot the points to check!
-# print(Ipts)
+print(Ipts)
