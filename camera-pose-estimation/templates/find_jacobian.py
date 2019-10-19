@@ -48,7 +48,7 @@ def find_jacobian(K, Twc, Wpt):
     # Find each dR or dt over variables
     # Essentially dR and dt are part of df
     #   where f(K, Twc, Wpt) = f_tilde = f normalized by 3rd row
-    f = K .dot(R.T).dot(dt)
+    f = K.dot(R.T).dot(dt)
     f_z = f[-1, 0]
 
     # To obtain the derivatives, we do chain rule of a fraction
@@ -56,15 +56,17 @@ def find_jacobian(K, Twc, Wpt):
     df[:, :3] = K.dot(R.T).dot((-np.eye(3)))
 
     dRdr, dRdp, dRdy = dR_drpy(R)
-    df[:, 3:4] = K .dot(dRdr.T).dot(dt)
-    df[:, 4:5] = K .dot(dRdp.T).dot(dt)
-    df[:, 5:6] = K .dot(dRdy.T).dot(dt)
+    df[:, 3:4] = K.dot(dRdr.T).dot(dt)
+    df[:, 4:5] = K.dot(dRdp.T).dot(dt)
+    df[:, 5:6] = K.dot(dRdy.T).dot(dt)
 
     df_z = df[-1:, :]
 
     # Now find J = d(f_tilde)/dq of d(f/f_z)/q, where q = [variables]
     # and ditch the last row to make it Cartesean again
+    J  = np.zeros((2, 6), dtype=np.float64)
     J = np.divide((f_z * df - f.dot(df_z)), f_z*f_z)[:-1, :]
+    # print('\nJacobian:', J)
     #------------------
 
     return J

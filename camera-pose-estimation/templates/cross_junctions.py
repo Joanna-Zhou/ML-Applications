@@ -2,11 +2,11 @@ import numpy as np
 from scipy.ndimage.filters import *
 import matplotlib.pyplot as plt
 
-#################################################################################################################################################################
-from imageio import imread
-import matplotlib.pyplot as plt
-from mat4py import loadmat
-#################################################################################################################################################################
+# #################################################################################################################################################################
+# from imageio import imread
+# import matplotlib.pyplot as plt
+# from mat4py import loadmat
+# #################################################################################################################################################################
 
 
 def cross_junctions(I, bounds, Wpts):
@@ -36,7 +36,7 @@ def cross_junctions(I, bounds, Wpts):
     Ipts = np.zeros((2, 48))
 
     # HEPLER FUNCTIONS #######################################################################################################################
-    def get_harris_corners(I, sigma, threshold, border, bbox, window):
+    def get_harris_corners(I, sigma, threshold, bbox, window):
         """
         Helper function, computes the Harris response and compares them to
         the threshold to get coordinates of the corners detected
@@ -46,7 +46,6 @@ def cross_junctions(I, bounds, Wpts):
         I           - Single-band (greyscale) image as np.array (e.g., uint8, float).
         sigma       - float, sigma for the Gaussian filter.
         threshold   - float between 0-1, a percentage of the top candidate (i.e. max in R) to compare the Harris response of each pixel to.
-        border      - tuple (border_x, border_y), the minimum number of pixels separating corners and the bounding box's inner boundary
         bbox        - the corners defining the bounding box
         window      - tuple (window_x, window_y), the minimum number of pixels separating each corner alone x and y
 
@@ -80,30 +79,54 @@ def cross_junctions(I, bounds, Wpts):
         # Get the candidates's coordinates and R values, and rank them according to their R values
         candidate_coords = np.array(candidates.nonzero()).T
         candidate_Rs = [R[coord[0], coord[1]] for coord in candidate_coords]
-        candidate_rank = np.argsort(candidate_Rs)
-        candidate_sorted = candidate_coords[candidate_rank]
+        candidate_rank = np.argsort(candidate_Rs)#[::-1]
+        candidate_sorted = candidate_coords[candidate_rank[:2000]] # get only top 1000
 
-        ## Use a binary 2D array to represent allowed/disallowed locations
-        # Initialize it with all 1's
-        filter =  np.ones(I.shape)
-        border_x, border_y = border[0], border[1]
-        bounds = np.array([[bbox[0][0]+border_x, bbox[0][1]-border_x, bbox[0][2]-border_x, bbox[0][3]+border_x],
-                            [bbox[1][0]+border_y, bbox[1][1]+border_y, bbox[1][2]-border_y, bbox[1][3]-border_y]])
-
-        # Add coordinates one after another while updating the filter with the windows
-        corners = []
+        ## The top 48 clusters wtih the most amount of dots will be the ideal points
+        # Loop through the canditates to get buckets for clustering
+        bound = np.array((bbox[1], bbox[0]))
+        print(bound, bbox)
+        candidate_buckets = []
+        i=0
+        dist_threshold = 14 #min(window_x, window_y)
+        print(dist_threshold)
         for coord in candidate_sorted:
-            x, y = coord[0], coord[1]
-            if filter[x, y] == 1 and inside_bounds(np.array([y, x]), bounds):
-                corners.append([y, x])
-                filter[(x-window[0]):(x+window[0]), (y-window[1]):(y+window[1])] = 0
+            i+=1
+            too_close = False
+            # print("is inside:", inside_bounds(coord, bbox))
+            for coord_bucket in candidate_buckets:
+                if np.linalg.norm(coord - coord_bucket) < dist_threshold:
+                    too_close = True
+            # Add the candidate that is inside the bound and also not too close to buckets
+            if not too_close and inside_bounds(coord, bound):
+                candidate_buckets.append(coord)
+        # candidate_buckets = np.array(candidate_buckets)
+
+        # Put each of the canditates into its closest bucket
+        candidate_clusters = {i: [] for i in range(len(candidate_buckets))}
+        for coord in candidate_sorted:
+            if inside_bounds(coord, bound):
+                distances = [np.linalg.norm(coord - bucket) for bucket in candidate_buckets]
+                closest_bucket = np.argmin(np.array(distances))
+                candidate_clusters[closest_bucket].append(coord)
+
+        # Compute the mean of each cluster as the corner
+        corners = []
+        candidate_clusters = sorted(list(candidate_clusters.values()), key=len)
+        for cluster in reversed(candidate_clusters):
+            centroid = np.mean(np.array(cluster), axis=0)
+            print(centroid)
+            corners.append([centroid[1], centroid[0]])
+            if len(corners) >= 48:
+                return np.array(corners)
         return np.array(corners)
+
 
     def inside_bounds(coord, bounds):
         """
         Helper function, determines if the point is inside this 4-edge polygon, returns a boolean
         """
-        isOutside = lambda p, a,b: np.cross(p-a, b-a) > 0
+        isOutside = lambda p, a,b: np.cross(p-a, b-a) < 0
         if isOutside(coord, bounds[:, 0], bounds[:, 1]) or \
             isOutside(coord, bounds[:, 1], bounds[:, 2]) or \
             isOutside(coord, bounds[:, 2], bounds[:, 3]) or \
@@ -128,6 +151,7 @@ def cross_junctions(I, bounds, Wpts):
         [a], [b], [c], [d], [e], [f] = params
         A = np.array([[2*a, b], [b, 2*c]])
         b = np.array([[d], [e]])
+        print("\n##############\nA:\n", A, "\n##############\n")
         pt = -np.dot(np.linalg.inv(A), b)
         return pt
 
@@ -157,65 +181,65 @@ def cross_junctions(I, bounds, Wpts):
     [x1, x2, x3, x4], [y1, y2, y3, y4] = bounds[0], bounds[1]
 
     # Get the harris corners
-    window_x = int((min(x2, x3)-max(x1, x4))/27)
-    window_y = int((min(y3, y4)-max(y1, y2))/27)
-    corners = get_harris_corners(I, sigma=1.0, threshold=0.3, border=(window_x*3, window_y*3), bbox=bounds, window=(window_y, window_x))
-
+    window_x = int(abs((min(x2, x3)-max(x1, x4))/14))
+    window_y = int(abs((min(y3, y4)-max(y1, y2))/14))
+    corners = get_harris_corners(I, sigma=1.0, threshold=0.4, bbox=bounds, window=(window_y, window_x))
     # Pass the points into a dlt homography for sorting
     brect = np.array([[0, 500, 500, 0], [0, 0, 500, 500]])
     H = dlt_homography(bounds, brect)
     H_back = dlt_homography(brect, bounds)
     corners_homo = get_dlt_transform(H, corners).T
+    print('\n#################\nFound', corners.shape, 'corners\n#################\n')
 
     # Sort the corners along y
     corners_sorted = corners_homo[corners_homo[:, 1].argsort()]
     # Sort along x
-    count_x, prev_corner = 0, corners_sorted[0, 1]
-    # Find how many points are there along x, first
-    for corner in corners_sorted:
-        if corner[1] - prev_corner > 30:
-            break
-        count_x += 1
-        prev_corner = corner[1]
-    for i in range(int(48/count_x)): # note that count_x should be 6 or 8
+    count_x, prev_corner = 8, corners_sorted[0, 1]
+    for i in range(count_x): # note that count_x should be 6 or 8
         index = corners_sorted[i*count_x:(i+1)*count_x, 0].argsort()
         corners_sorted[i*count_x:(i+1)*count_x, :] = corners_sorted[i*count_x:(i+1)*count_x, :][index]
     corners = get_dlt_transform(H_back, corners_sorted).T
+    print('\n#################\nFound', corners.T, corners.shape, 'sorted corners\n#################\n')
     # print(corners)
 
     # Refine the corner's location with the saddle point detector
     saddles = []
+    window_x = 10 #int(window_x/2)
+    window_y = 10 #int(window_y/2)
     for corner in corners:
+        print('\n#################\ncorner:\n', corner, '\n#################\n')
         patch_x, patch_y = int(corner[0]), int(corner[1])
         I_patch = I[(patch_y-window_y):(patch_y+window_y), (patch_x-window_x):(patch_x+window_x)]
         saddle = saddle_point(I_patch)
         saddles.append(corner+saddle.T[0]-np.array([window_x, window_y]))
     saddles = np.array(saddles)
 
-    # Visualization
-    plt.scatter(corners[:13, 0], corners[:13, 1], s=10, c='cyan', marker='x')
-    plt.scatter(saddles[:, 0], saddles[:, 1], s=10, c='green', marker='x')
-    plt.imshow(I)
-    plt.show()
+    Ipts = saddles.T
+    # print(saddles, '\n#################\nFound', saddles.shape, 'saddles\n#################\n')
 
-    Ipts = saddles
+    # # Visualization
+    # plt.scatter(corners[:, 0], corners[:, 1], s=50, c='cyan', marker='x')
+    # plt.scatter(saddles[:, 0], saddles[:, 1], s=50, c='red', marker='x')
+    # plt.imshow(I)
+    # plt.show()
+
 
     #------------------
 
     return Ipts
 
-
-if __name__ == '__main__':
-
-    # Load the boundary.
-    bounds = np.array(loadmat("../targets/bounds.mat")["bpolyh1"])
-
-    # Load the world points.
-    Wpts = np.array(loadmat("../targets/world_pts.mat")["world_pts"])
-
-    # Load the example target image.
-    I = imread("../targets/example_target.png")
-    Ipts = cross_junctions(I, bounds, Wpts)
-
-    # You can plot the points to check!
-    # print(Ipts)
+#
+# if __name__ == '__main__':
+#
+#     # Load the boundary.
+#     bounds = np.array(loadmat("../targets/bounds.mat")["bpolyh1"])
+#
+#     # Load the world points.
+#     Wpts = np.array(loadmat("world_pts.mat")["world_pts"])
+#
+#     # Load the example target image.
+#     I = imread("../targets/example_target.png")
+#     Ipts = cross_junctions(I, bounds, Wpts)
+#
+# #     # You can plot the points to check!
+# #     # print(Ipts)
