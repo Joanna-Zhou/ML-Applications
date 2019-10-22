@@ -54,11 +54,12 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
     maxiter = 100 # max number of belief propagation iterations
     tau = 15. # for the data cost
     lamb = maxd # the impact of smoothness in the cost function
+    model = "Potts"# "Linear" # model for the smoothness cost # Potts turned out to be better at higher iteration (i.e. iter=100/tau=15)
     K = 2. # only when using the truncated linear model fpr smoothness
     sigma = 0.1 # gaussian pamareter for the input images before stereo matching
 
     # Preprocessing
-    print("Processing LBP with {} iterations, lamb={}, and tau={}:".format(maxiter, lamb, tau))
+    print("Processing LBP with {} iterations, tau={} \nand lamb={} with the {} model for smoothness:".format(maxiter, tau, lamb, model))
     m, n = Il.shape # m=height(#rows) and n=width(#columns)
     Il, Ir = gaussian_filter(Il, sigma), gaussian_filter(Ir, sigma) # smoothen the img
 
@@ -265,7 +266,7 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
     # Perform the LBP to minimize the energy
     for i in range(maxiter):
         print('Iteration {}'.format(i))
-        messages = propagate(messages, D_costs, model="Linear")
+        messages = propagate(messages, D_costs, model=model)
         # energy.append(total_energy(Id, D_costs)) # used to debug and observe, commented out for saving time
 
     # Once the max number of iteration is reached, we get the belief from the updated messages
