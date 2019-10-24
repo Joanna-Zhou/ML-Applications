@@ -51,7 +51,7 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
 
     # Parameters that require tuning ###########################################################################
     # Parameters
-    maxiter = int(6000/maxd)-3 # max number of belief propagation iterations
+    maxiter = 3 #int(6000/maxd)-3 # max number of belief propagation iterations
     tau = 15. # for the data cost
     lamb = 1 # the impact of smoothness in the cost function
     model = "Potts"# "Linear" # model for the smoothness cost # Potts turned out to be better at higher iteration (i.e. iter=100/tau=15)
@@ -275,6 +275,7 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
 
     # The final guess of Id is the disparsity mapping which yields the least cost (i.e. Beliefs)
     Id = np.argmin(Beliefs, axis=2)
+    imwrite('Id_lamb{}_iter{}.png'.format(lamb, maxiter),Id)
     #------------------
 
     return Id
@@ -282,7 +283,7 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
 
 ###################################################################
 if __name__ == '__main__':
-    bboxes = loadmat("../images/bboxes.mat")
+    bboxes = loadmat("./images/bboxes.mat")
 
     # Load the stereo images.
     # Il = imread("../images/cones_image_02.png", as_gray = True)
@@ -290,14 +291,13 @@ if __name__ == '__main__':
     # It = imread("../images/cones_disp_02.png", as_gray = True)
     # bbox = np.array(bboxes["cones_02"]["bbox"])
 
-    Il = imread("../images/teddy_image_02.png", as_gray = True)
-    Ir = imread("../images/teddy_image_06.png", as_gray = True)
-    It = imread("../images/teddy_disp_02.png", as_gray = True)
+    Il = imread("./images/teddy_image_02.png", as_gray = True)
+    Ir = imread("./images/teddy_image_06.png", as_gray = True)
+    It = imread("./images/teddy_disp_02.png", as_gray = True)
     bbox = np.array(bboxes["teddy_02"]["bbox"])
 
     Id = stereo_disparity_best(Il, Ir, bbox, 63)
     print("Score:", stereo_disparity_score(It, Id, bbox))
-    imwrite('Id_lamb{}_iter{}.png'.format(lamb, maxiter),Id)
-    # plt.imshow(Id, cmap = "gray")
-    # plt.show()
+    plt.imshow(Id, cmap = "gray")
+    plt.show()
 ###################################################################
