@@ -51,9 +51,9 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
 
     # Parameters that require tuning ###########################################################################
     # Parameters
-    maxiter = 100 # max number of belief propagation iterations
+    maxiter = int(6000/maxd)-3 # max number of belief propagation iterations
     tau = 15. # for the data cost
-    lamb = maxd # the impact of smoothness in the cost function
+    lamb = 1 # the impact of smoothness in the cost function
     model = "Potts"# "Linear" # model for the smoothness cost # Potts turned out to be better at higher iteration (i.e. iter=100/tau=15)
     K = 2. # only when using the truncated linear model fpr smoothness
     sigma = 0.1 # gaussian pamareter for the input images before stereo matching
@@ -275,9 +275,6 @@ def stereo_disparity_best(Il, Ir, bbox, maxd):
 
     # The final guess of Id is the disparsity mapping which yields the least cost (i.e. Beliefs)
     Id = np.argmin(Beliefs, axis=2)
-
-    imwrite('disparity_{:g}.png'.format(lamb),Id)
-
     #------------------
 
     return Id
@@ -288,17 +285,19 @@ if __name__ == '__main__':
     bboxes = loadmat("../images/bboxes.mat")
 
     # Load the stereo images.
-    Il = imread("../images/cones_image_02.png", as_gray = True)
-    Ir = imread("../images/cones_image_06.png", as_gray = True)
-    It = imread("../images/cones_disp_02.png", as_gray = True)
-    bbox = np.array(bboxes["cones_02"]["bbox"])
+    # Il = imread("../images/cones_image_02.png", as_gray = True)
+    # Ir = imread("../images/cones_image_06.png", as_gray = True)
+    # It = imread("../images/cones_disp_02.png", as_gray = True)
+    # bbox = np.array(bboxes["cones_02"]["bbox"])
 
-    # Il = imread("../images/teddy_image_02.png", as_gray = True)
-    # Ir = imread("../images/teddy_image_06.png", as_gray = True)
-    # bbox = np.array(bboxes["teddy_02"]["bbox"])
+    Il = imread("../images/teddy_image_02.png", as_gray = True)
+    Ir = imread("../images/teddy_image_06.png", as_gray = True)
+    It = imread("../images/teddy_disp_02.png", as_gray = True)
+    bbox = np.array(bboxes["teddy_02"]["bbox"])
 
-    Id = stereo_disparity_best(Il, Ir, bbox, 52)
+    Id = stereo_disparity_best(Il, Ir, bbox, 63)
     print("Score:", stereo_disparity_score(It, Id, bbox))
+    imwrite('Id_lamb{}_iter{}.png'.format(lamb, maxiter),Id)
     # plt.imshow(Id, cmap = "gray")
     # plt.show()
 ###################################################################
