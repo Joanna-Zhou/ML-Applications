@@ -4,11 +4,11 @@ from scipy.ndimage.filters import *
 
 
 ###########################################################
-import numpy as np
-import matplotlib.pyplot as plt
-from mat4py import loadmat
-from imageio import imread
-from stereo_disparity_score import stereo_disparity_score
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from mat4py import loadmat
+# from imageio import imread
+# from stereo_disparity_score import stereo_disparity_score
 ###########################################################
 
 def stereo_disparity_fast(Il, Ir, bbox, maxd):
@@ -100,20 +100,20 @@ def stereo_disparity_fast(Il, Ir, bbox, maxd):
     return Id
 
 ###################################################################
-if __name__ == '__main__':
-    bboxes = loadmat("/images/bboxes.mat")
-    # Load the stereo images.
-    # Il = imread("../images/cones_image_02.png", as_gray = True)
-    # Ir = imread("../images/cones_image_06.png", as_gray = True)
-    # It = imread("../images/cones_disp_02.png", as_gray = True)
+# if __name__ == '__main__':
+#     bboxes = loadmat("/images/bboxes.mat")
+#     # Load the stereo images.
+#     # Il = imread("../images/cones_image_02.png", as_gray = True)
+#     # Ir = imread("../images/cones_image_06.png", as_gray = True)
+#     # It = imread("../images/cones_disp_02.png", as_gray = True)
 
-    Il = imread("/images/teddy_image_02.png", as_gray = True)
-    Ir = imread("/images/teddy_image_06.png", as_gray = True)
-    It = imread("/images/teddy_disp_02.png", as_gray = True)
-    bbox = np.array(bboxes["teddy_02"]["bbox"])
+#     Il = imread("/images/teddy_image_02.png", as_gray = True)
+#     Ir = imread("/images/teddy_image_06.png", as_gray = True)
+#     It = imread("/images/teddy_disp_02.png", as_gray = True)
+#     bbox = np.array(bboxes["teddy_02"]["bbox"])
 
-    Id = stereo_disparity_fast(Il, Ir, bbox, 52)
-    print("Score:", stereo_disparity_score(It, Id, bbox))
-    plt.imshow(Id, cmap = "gray")
-    plt.show()
+#     Id = stereo_disparity_fast(Il, Ir, bbox, 52)
+#     print("Score:", stereo_disparity_score(It, Id, bbox))
+#     plt.imshow(Id, cmap = "gray")
+#     plt.show()
 ###################################################################
