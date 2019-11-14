@@ -28,12 +28,18 @@ def triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr):
     S   - 3x3 np.array, covariance matrix for estimated 3D point.
     """
     #--- FILL ME IN ---
+    Cwr, Cwl = Twr[:3, :3], Twl[:3, :3]
 
     # Compute baseline (right camera translation minus left camera translation).
-
-    # Unit vectors projecting from optical center to image plane points.
+    b = Twr[:3, 3] - Twl[:3, 3]
+    
+    # Unit vectors projecting from optical center to image plane points.    
     # Use variables rayl and rayr for the rays.
- 
+    rayl_unnorm = Cwr @ inv(Kl) @ np.append(pl, 1)
+    rayl = rayl_unnorm.reshape((3, 1))/norm(rayl_unnorm)
+    rayr_unnorm = Cwl @ inv(Kr) @ np.append(pr, 1)
+    rayr = rayr_unnorm.reshape((3, 1))/norm(rayr_unnorm)
+         
     # Projected segment lengths.
     # Use variables ml and mr for the segment lengths.
     
@@ -47,10 +53,27 @@ def triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr):
     drayl = np.zeros((3, 4))  # Jacobian left ray w.r.t. image points.
     drayr = np.zeros((3, 4))  # Jacobian right ray w.r.t. image points.
 
-    # Add code here...
+    def get_Jacobian(r, rhat, C, invK):
+         """Helper function that returns the Jacobian with chain rule
+         Arguments:
+             r {1*3 array} -- rayl or rayr
+             rhat {1*3 array} -- rayl or rayr
+             C {3*3 array} -- Cwr or Cwl
+             invK {3*3 array} -- inv(Kl) or inv(Kr)
+         """
+         CinvK = C @ invK
+         dr_duv = CinvK[:, 0:2] # 3*2 array
+         
+         norm_r = norm(r)
+         rhat_rhat_T = rhat.reshape((3, 1)) @ rhat.reshape((1, 3))
+         drhat_dr = (np.ones((3,3)) - rhat_rhat_T)/norm_r  # 3*3 array
+
+         return drhat_dr @ dr_duv
+
+    drayl[:, 0:2] = get_Jacobian(rayl_unnorm, rayl, Cwl, inv(Kl))
+    drayr[:, 2:4] = get_Jacobian(rayr_unnorm, rayr, Cwr, inv(Kr))
 
     #------------------
-
     # Compute dml and dmr (partials wrt segment lengths).
     u = np.dot(b.T, rayl) - np.dot(b.T, rayr)*np.dot(rayl.T, rayr)
     v = 1 - np.dot(rayl.T, rayr)**2
@@ -85,4 +108,32 @@ def triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr):
 
     #------------------
 
-    return Pl, Pr, P, S
+    return #Pl, Pr, P, S
+
+
+######################################################################
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from dcm_from_rpy import dcm_from_rpy
+
+# Camera intrinsic matrices.
+Kl = np.array([[500.0, 0.0, 320], [0.0, 500.0, 240.0], [0, 0, 1]])
+Kr = Kl
+
+# Camera poses (left, right).
+Twl = np.eye(4)
+Twl[:3, :3] = dcm_from_rpy([-np.pi/2, 0, 0])  # Tilt for visualization.
+Twr = Twl.copy()
+Twr[0, 3] = 0.4  # Baseline.
+
+# Image plane points (left, right).
+pl = np.array([[241], [237.0]])
+pr = np.array([[230], [238.5]])
+
+# Image plane uncertainties (covariances).
+Sl = np.eye(2)
+Sr = np.eye(2)
+
+triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr)
+
+# [Pl, Pr, P, S] = triangulate(Kl, Kr, Twl, Twr, pl, pr, Sl, Sr)
