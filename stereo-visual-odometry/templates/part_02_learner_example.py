@@ -21,5 +21,5 @@ Tfi = np.vstack((np.hstack((C, t)), np.array([[0, 0, 0, 1]])))
 print(Tfi - Tfi_est)
 
 # Now try with iteration.
-#Tfi_est = estimate_motion_ils(Pi, Pf, Si, Sf, 10)
-#print(Tfi - Tfi_est)
+Tfi_est = estimate_motion_ils(Pi, Pf, Si, Sf, 10)
+print(Tfi - Tfi_est)

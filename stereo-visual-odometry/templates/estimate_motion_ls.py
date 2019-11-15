@@ -30,22 +30,23 @@ def estimate_motion_ls(Pi, Pf, Si, Sf):
     for i in np.arange(Pi.shape[1]):
         #--- FILL ME IN ---
 
-        # Insert code here.
+        Sij, Sfj = Si[:, :, i], Sf[:, :, i]
+        wj = (det(Sij) + det(Sfj)) ** (-1)
 
         #------------------
         w  += wj
         Qi += wj*Pi[:, i].reshape(3, 1)
         Qf += wj*Pf[:, i].reshape(3, 1)
-        A  += wj*(Pi[:, i].reshape(3, 1))@(Pf[:, i].reshape(1, 3))
+        A  += wj*(Pf[:, i].reshape(3, 1))@(Pi[:, i].reshape(1, 3))
 
-    E = A - 1/w*Qi.reshape(3, 1)@Qf.reshape(1, 3)
+    E = A - 1/w*Qf.reshape(3, 1)@Qi.reshape(1, 3)
 
     # Compute SVD of E, then use that to find R, T.
     U, S, Vh = svd(E)
     M = np.eye(3)
     M[2, 2] = det(U)*det(Vh)
     C = U@M@Vh
-    t = 1/w*(Qi - C@Qf)
+    t = 1/w*(Qf - C@Qi)
 
     Tfi = np.vstack((np.hstack((C, t)), np.array([[0, 0, 0, 1]])))
 
